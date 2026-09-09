@@ -2178,23 +2178,21 @@ begin
   if (aInstanceName = '') or (aFilename = '') or (FFormInstances.Count = 0) then
     Exit;
   aInstanceName := LowerCase(aInstanceName);
-  p := 0;
   for i := 0 to FFormInstances.Count-1 do begin
-    if lowercase(RightStr(FFormInstances[i], Length(aInstancename))) = aInstancename then
-      p := Length(aInstancename) -1
-    else
-      continue;
-    if p > 0 then begin
-      filenamepart := LeftStr(FFormInstances[i], Length(FFormInstances[i])-p-2);
-      instancenamepart := lowercase(RightStr(FFormInstances[i], p+1));
-      {$ifdef mswindows}
-      if (AnsiLowercase(filenamepart) = AnsiLowercase(aFilename))
-      {$else}
-      if (filenamepart = aFilename)
-      {$endif}
-      and (instancenamepart = aInstanceName) then begin
-        Result := true;
-        exit;
+    if lowercase(RightStr(FFormInstances[i], Length(aInstancename))) = aInstancename then begin
+      p := Length(aInstancename) -1;
+      if p > 0 then begin
+        filenamepart := LeftStr(FFormInstances[i], Length(FFormInstances[i])-p-2);
+        instancenamepart := lowercase(RightStr(FFormInstances[i], p+1));
+        {$ifdef mswindows}
+        if (AnsiLowercase(filenamepart) = AnsiLowercase(aFilename))
+        {$else}
+        if (filenamepart = aFilename)
+        {$endif}
+        and (instancenamepart = aInstanceName) then begin
+          Result := true;
+          exit;
+        end;
       end;
     end;
   end;
