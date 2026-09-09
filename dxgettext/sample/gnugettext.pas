@@ -19,6 +19,7 @@ unit gnugettext;
 (*                Thomas Mueller (dummzeuch)                  *)
 (*                Olivier Sannier (obones)                    *)
 (*                Luebbe Onken (LO)                           *)
+(*                Michiel Spoor (gimbal2000)                  *)
 (*                                                            *)
 (*  See http://dxgettext.po.dk/ for more information          *)
 (*                                                            *)
