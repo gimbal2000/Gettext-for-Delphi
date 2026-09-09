@@ -728,7 +728,7 @@ var
   fs,
   src: TStream;
   mem: TMemoryStream;
-  line, lastline:string;
+  line, lastline: string;
   s: string;
   i:integer;
   indent: integer;
@@ -737,19 +737,21 @@ var
   scope: TStringList;
   propertyname: string;
   multilinevalue: boolean;
+  multilinetext: boolean;  // true for Lines.Strings (one single text block)
   mvalue: string;
   p1, p2, p3: integer;
   pClassname: integer;
   c:char;
   classnamepart: string;
-  linechar:char;
+  linechar: char;
   currentclassname: string;
   classnames: TStringList;
   instancenames: TStringList;
-  excludeclass:boolean;
-  excludeinstance:boolean;
-  collectionlevel:integer; // will be increased which each occurence of a collection, in order to recognize nested collections
-  collectionpropertyname:string; // will be the propertyname of the highest-level collection property
+  excludeclass: boolean;
+  excludeinstance: boolean;
+  collectionlevel: integer; // will be increased which each occurence of a collection, in order to recognize nested collections
+  collectionpropertyname: string; // will be the propertyname of the highest-level collection property
+
 
   procedure AddEntry(const aValue:string);
   var
@@ -803,6 +805,7 @@ begin
       collectionpropertyname := '';
       multilinevalue := false;
       collectionlevel := 0;
+      multilinetext := false;
       while true do begin
         // Get next line and check it out
         lastline := line;
@@ -893,7 +896,10 @@ begin
         // Check for changes in scope
         if (indent < scope.Count) and multilinevalue then begin
           multilinevalue := false;
-          AddEntry(mvalue);
+          if not multilinetext then begin
+            AddEntry(mvalue);
+            mvalue := '';
+          end;
           scope.Delete(scope.count - 1);
         end;
         while indent < scope.Count do begin
@@ -905,7 +911,6 @@ begin
           if p = 0 then s := lastline else s := copy(lastline, p + 1, maxint);
           p := pos(':', s);
           multilinevalue := true;
-          mvalue := '';
           if p = 0 then s := '' else s := copy(s, 1, p - 1);
         end;
         while indent > scope.Count do begin
@@ -923,29 +928,47 @@ begin
 
         // Extract property name if the line contains such one
         if (p <> 0) and (p < p3) then begin
+          // We are reading a new property:
+          //   flush remaining multilinetext first, so it gets noted on the correct propertyname
+          if mvalue <> '' then begin
+            AddEntry(mvalue);
+            mvalue := '';
+          end;
+
           propertyname := trim(copy(line, 1, p - 1));
-          // is we're in a collection (and it's the highest level if there are nested collections), remember the property name of that collection
+          // if we're in a collection (and it's the highest level if there are nested collections), remember the property name of that collection
           if (collectionlevel = 1) and (collectionpropertyname = '') then
             collectionpropertyname := propertyname;
-          multilinevalue := false;
+
+          multilinetext := lowercase(propertyname) = 'lines.strings'; // The property 'Lines.Strings' we will always
+          multilinevalue := false;                                   //  interpret as -one- item for translation
         end;
 
         // Extract string, if the line contains such one
         if p3 <> maxint then begin
           delete(line, 1, p3 - 1);
           extractstring(line, s);
-          if multilinevalue then begin
+          if multilinevalue or multilinetext then begin
             mvalue := mvalue + s;
             if trim(line) <> '+' then begin
-              AddEntry(mvalue);
-              mvalue:='';
+              if multilinetext then
+                mvalue := mvalue + #13#10
+              else begin
+                AddEntry(mvalue);
+                mvalue := '';
+              end;
             end;
           end else begin
             AddEntry(s);
           end;
         end;
-      end;
+      end;  { while true - reading lines }
     finally
+      // EOF: flush a remaining multilinetext
+      if mvalue <> '' then begin
+        AddEntry(mvalue);
+        mvalue := '';
+      end;
       FreeAndNil(scope);
       FreeAndNil(classnames);
     end;
@@ -2155,23 +2178,21 @@ begin
   if (aInstanceName = '') or (aFilename = '') or (FFormInstances.Count = 0) then
     Exit;
   aInstanceName := LowerCase(aInstanceName);
-  p := 0;
   for i := 0 to FFormInstances.Count-1 do begin
-    if lowercase(RightStr(FFormInstances[i], Length(aInstancename))) = aInstancename then
-      p := Length(aInstancename) -1
-    else
-      continue;
-    if p > 0 then begin
-      filenamepart := LeftStr(FFormInstances[i], Length(FFormInstances[i])-p-2);
-      instancenamepart := lowercase(RightStr(FFormInstances[i], p+1));
-      {$ifdef mswindows}
-      if (AnsiLowercase(filenamepart) = AnsiLowercase(aFilename))
-      {$else}
-      if (filenamepart = aFilename)
-      {$endif}
-      and (instancenamepart = aInstanceName) then begin
-        Result := true;
-        exit;
+    if lowercase(RightStr(FFormInstances[i], Length(aInstancename))) = aInstancename then begin
+      p := Length(aInstancename) -1;
+      if p > 0 then begin
+        filenamepart := LeftStr(FFormInstances[i], Length(FFormInstances[i])-p-2);
+        instancenamepart := lowercase(RightStr(FFormInstances[i], p+1));
+        {$ifdef mswindows}
+        if (AnsiLowercase(filenamepart) = AnsiLowercase(aFilename))
+        {$else}
+        if (filenamepart = aFilename)
+        {$endif}
+        and (instancenamepart = aInstanceName) then begin
+          Result := true;
+          exit;
+        end;
       end;
     end;
   end;

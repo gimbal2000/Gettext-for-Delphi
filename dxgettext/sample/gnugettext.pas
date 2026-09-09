@@ -19,6 +19,7 @@ unit gnugettext;
 (*                Thomas Mueller (dummzeuch)                  *)
 (*                Olivier Sannier (obones)                    *)
 (*                Luebbe Onken (LO)                           *)
+(*                Michiel Spoor (gimbal2000)                  *)
 (*                                                            *)
 (*  See http://dxgettext.po.dk/ for more information          *)
 (*                                                            *)
@@ -2565,82 +2566,94 @@ var
   {$endif dx_StringList_has_OwnsObjects}
 begin
   if sl.Count > 0 then begin
-    {$ifdef dx_StringList_has_OwnsObjects}
-    // From D2009 onward, the TStringList class has an OwnsObjects property, just like
-    // TObjectList has. This means that if we call Clear on the given
-    // list in the sl parameter, we could destroy the objects it contains.
-    // To avoid this we must disable OwnsObjects while we replace the strings, but
-    // only if sl is a TStringList instance and if using Delphi 2009 or later.
-    originalOwnsObjects := False; // avoid warning
-    if sl is TStringList then
-      slAsTStringList := TStringList(sl)
+
+    if sl.ClassName = 'TMemoStrings' then
+    begin
+      // Text from memo's we translate as a whole
+      if (TextDomain = '') or (TextDomain = DefaultTextDomain) then
+        sl.Text := ComponentGettext(sl.Text, Self)
+      else
+        sl.Text := dgettext(TextDomain,sl.Text);
+    end
     else
-      slAsTStringList := nil;
-    {$endif dx_StringList_has_OwnsObjects}
+    begin
+      {$ifdef dx_StringList_has_OwnsObjects}
+      // From D2009 onward, the TStringList class has an OwnsObjects property, just like
+      // TObjectList has. This means that if we call Clear on the given
+      // list in the sl parameter, we could destroy the objects it contains.
+      // To avoid this we must disable OwnsObjects while we replace the strings, but
+      // only if sl is a TStringList instance and if using Delphi 2009 or later.
+      originalOwnsObjects := False; // avoid warning
+      if sl is TStringList then
+        slAsTStringList := TStringList(sl)
+      else
+        slAsTStringList := nil;
+      {$endif dx_StringList_has_OwnsObjects}
 
-    sl.BeginUpdate;
-    try
-      tempSL:=TStringList.Create;
+      sl.BeginUpdate;
       try
-        // don't use Assign here as it will propagate the Sorted property (among others)
-        // in versions of Delphi from Delphi XE onward
-        tempSL.AddStrings(sl);
+        tempSL:=TStringList.Create;
+        try
+          // don't use Assign here as it will propagate the Sorted property (among others)
+          // in versions of Delphi from Delphi XE onward
+          tempSL.AddStrings(sl);
 
-        for i:=0 to tempSL.Count-1 do begin
-          line:=tempSL.Strings[i];
-          if line<>'' then
-            if (TextDomain = '') or (TextDomain = DefaultTextDomain) then
-              tempSL.Strings[i]:=ComponentGettext(line, Self)
-            else
-              tempSL.Strings[i]:=dgettext(TextDomain,line);
-        end;
-
-        //DH Fix 2013-09-19: Only refill sl if changed
-        if sl.Text<>tempSL.Text then
-        begin
-          {$ifdef dx_StringList_has_OwnsObjects}
-          if Assigned(slAsTStringList) then begin
-            originalOwnsObjects := slAsTStringList.OwnsObjects;
-            slAsTStringList.OwnsObjects := False;
+          for i:=0 to tempSL.Count-1 do begin
+            line:=tempSL.Strings[i];
+            if line<>'' then
+              if (TextDomain = '') or (TextDomain = DefaultTextDomain) then
+                tempSL.Strings[i]:=ComponentGettext(line, Self)
+              else
+                tempSL.Strings[i]:=dgettext(TextDomain,line);
           end;
-          {$endif dx_StringList_has_OwnsObjects}
-          try
-            {$ifdef dx_StringList_has_OwnsObjects}
-            if Assigned(slAsTStringList) and slAsTStringList.Sorted then
-            begin
-              // TStringList doesn't release the objects in PutObject, so we use this to get
-              // sl.Clear to not destroy the objects in classes that inherit from TStringList
-              // but do a ClearObject in Clear.
-              //
-              // todo: Check whether this should be
-              //   if sl is TStringList then
-              // instead.
-              if sl.ClassType <> TStringList then
-                for I := 0 to sl.Count - 1 do
-                  sl.Objects[I] := nil;
 
-              // same here, we don't use assign because we don't want to modify the properties of the orignal string list
-              sl.Clear;
-              sl.AddStrings(tempSL);
-            end
-            else
-            {$endif dx_StringList_has_OwnsObjects}
-            begin
-              for i := 0 to sl.Count - 1 do
-                sl[i] := tempSL[i];
+          //DH Fix 2013-09-19: Only refill sl if changed
+          if sl.Text<>tempSL.Text then
+          begin
+            {$ifdef dx_StringList_has_OwnsObjects}
+            if Assigned(slAsTStringList) then begin
+              originalOwnsObjects := slAsTStringList.OwnsObjects;
+              slAsTStringList.OwnsObjects := False;
             end;
-          finally
-            {$ifdef dx_StringList_has_OwnsObjects}
-            if Assigned(slAsTStringList) then
-              slAsTStringList.OwnsObjects := originalOwnsObjects;
             {$endif dx_StringList_has_OwnsObjects}
+            try
+              {$ifdef dx_StringList_has_OwnsObjects}
+              if Assigned(slAsTStringList) and slAsTStringList.Sorted then
+              begin
+                // TStringList doesn't release the objects in PutObject, so we use this to get
+                // sl.Clear to not destroy the objects in classes that inherit from TStringList
+                // but do a ClearObject in Clear.
+                //
+                // todo: Check whether this should be
+                //   if sl is TStringList then
+                // instead.
+                if sl.ClassType <> TStringList then
+                  for I := 0 to sl.Count - 1 do
+                    sl.Objects[I] := nil;
+
+                // same here, we don't use assign because we don't want to modify the properties of the orignal string list
+                sl.Clear;
+                sl.AddStrings(tempSL);
+              end
+              else
+              {$endif dx_StringList_has_OwnsObjects}
+              begin
+                for i := 0 to sl.Count - 1 do
+                  sl[i] := tempSL[i];
+              end;
+            finally
+              {$ifdef dx_StringList_has_OwnsObjects}
+              if Assigned(slAsTStringList) then
+                slAsTStringList.OwnsObjects := originalOwnsObjects;
+              {$endif dx_StringList_has_OwnsObjects}
+            end;
           end;
+        finally
+          FreeAndNil (tempSL);
         end;
       finally
-        FreeAndNil (tempSL);
+        sl.EndUpdate;
       end;
-    finally
-      sl.EndUpdate;
     end;
   end;
 end;
